@@ -1,0 +1,408 @@
+---
+title: "Resument estratificación"
+author: "Rafael Encalada y Angel Gaibor"
+output:
+  pdf_document:
+    toc: yes
+    df_print: kable
+    number_sections: yes
+  word_document:
+    toc: yes
+  html_document:
+    number_sections: yes
+    toc: yes
+    theme: bootstrap
+    highlight: tango
+date: "2024-05-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introducción
+ 
+El presente informe es para detallar las particularidades que se tuvieron al momento de realizar la estratificación tanto en la clasificación de variables como al momento de decididir el número de estratos por dominio de estratificación.
+
+# Dominios de estratificación
+
+Se construyeron un total de 62 dominios de estratificación que corresponden a:
+\begin{itemize}
+\item 10 dominios de estratificación de cinco cantones por área.
+\begin{itemize}
+\item [301] Cantón Cuenca Urbano
+\item [302] Cantón Cuenca Rural
+\item [311] Cantón Riobamba Urbano
+\item [312] Cantón Riobamba Rural
+\item [321] Cantón Loja Urbano
+\item [322] Cantón Loja Rural
+\item [331] Cantón Quito Urbano
+\item [332] Cantón Quito Rural
+\item [341] Cantón Ambato Urbano
+\item [342] Cantón Ambato Rural
+\end{itemize}
+\item 5 dominios de estratificación de cinco cantones considerando unicamente su parte urbana.
+\begin{itemize}
+\item [401] Cantón Machala Urbano
+\item [411] Cantón Esmeraldas Urbano
+\item [421] Cantón Guayaquil Urbano
+\item [431] Cantón Manta Urbano
+\item [441] Cantón Santo Domingo Urbano
+\end{itemize}
+\item 1 dominio de estratificación correspondiente a Galápagos - 209 sin particularizar por área.
+\item 10 dominios de estratificación de diez restos de provincias en su área urbana
+\begin{itemize}
+\item [011] Resto Provincia Azuay Urbano
+\item [061] Resto Provincia Chimborazo Urbano
+\item [071] Resto Provincia El Oro Urbano
+\item [081] Resto Provincia Esmeraldas Urbano
+\item [091] Resto Provincia Guayas Urbano
+\item [111] Resto Provincia Loja Urbano
+\item [131] Resto Provincia Manabí Urbano
+\item [171] Resto Provincia Pichincha Urbano
+\item [181] Resto Provincia Tungurahua Urbano
+\item [231] Resto Provincia Santo Domingo Urbano
+\end{itemize}
+\item 5 dominios de estratificación de cinco restos de provincias en su área rural.
+\begin{itemize}
+\item [012] Resto Provincia Azuay Rural
+\item [062] Resto Provincia Chimborazo Rural
+\item [112] Resto Provincia Loja Rural
+\item [172] Resto Provincia Pichincha Rural
+\item [182] Resto Provincia Tungurahua Rural
+\end{itemize}
+\item 13 dominios correspondientes a Provincias en su área urbana (Bolívar, Cañar, Carchi, Cotopaxi, Imbabura, Los Ríos, Morono Santiago, Napo, Pastaza, Zamora Chinchipe, Sucumbíos, Orellana, Santa Elena)
+\begin{itemize}
+\item [021] Provincia Bolívar Urbano
+\item [031] Provincia Cañar Urbano
+\item [041] Provincia Carchi Urbano
+\item [051] Provincia Cotopaxi Urbano
+\item [101] Provincia Imbabura Urbano
+\item [121] Provincia Los Ríos Urbano
+\item [141] Provincia Morona Santiago Urbano
+\item [151] Provincia Napo Urbano
+\item [161] Provincia Pastaza Urbano
+\item [191] Provincia Zamora Chinchipe Urbano
+\item [211] Provincia Sucumbíos Urbano
+\item [221] Provincia Orellana Urbano
+\item [241] Provincia Santa Elena Urbano
+\end{itemize}
+\item 18 dominios correspondientes a Provincias en su área rural (Bolívar, Cañar, Carchi, Cotopaxi, El Oro, Esmeraldas, Guayas, Imbabura, Los Ríos, Manabí, Morono Santiago, Napo, Pastaza, Zamora Chinchipe, Santo Domingo, Sucumbíos, Orellana, Santa Elena)
+\begin{itemize}
+\item [021] Provincia Bolívar Rural
+\item [031] Provincia Cañar Rural
+\item [041] Provincia Carchi Rural
+\item [051] Provincia Cotopaxi Rural
+\item [071] Provincia El Oro Rural
+\item [081] Provincia Esmeraldas Rural
+\item [091] Provincia Guayas Rural
+\item [101] Provincia Imbabura Rural
+\item [121] Provincia Los Ríos Rural
+\item [131] Provincia Manabí Rural
+\item [141] Provincia Morona Santiago Rural
+\item [151] Provincia Napo Rural
+\item [161] Provincia Pastaza Rural
+\item [191] Provincia Zamora Chinchipe Rural
+\item [211] Provincia Sucumbíos Rural
+\item [221] Provincia Orellana Rural
+\item [231] Provincia Santo Domingo Rural
+\item [241] Provincia Santa Elena Rural
+\end{itemize}
+\end{itemize}
+
+\textbf{Nota:} La decisión de tomar un único dominio de estratificación en Galápagos es porque el número de UPM en la provincia es de 112 por lo que al momento de administrar el marco con este número de UPM generaría desgaste en la muestra.
+
+# Clasificación de variables
+
+Para las variables techo, piso, paredes, procedencia de agua, tubería por dentro del domicilio y servicio higiénico se hizo una asignación de las categorías con bienestar utilizando un algoritmo de clasificación de arboles de decisión de manera particular para cada dominio de estratificación.
+
+Para ello se realizó de forma general una clasificación de variables para 6 grupos correspondientes al cruce entre Región Natural y Área. Luego para cada dominio de estratificación se tomó como base el resultado de la región natural y área a la que pertenece, haciendo cambios en la clasificación siempre y cuando existiera un número de observaciones adecuado y difiera de la clasificación de la región natural por área.
+
+\textbf{Nota:} Se decidió clasificar como bienestar a por lo menos una categoría de cada una de las variables clasificadas.
+
+```{r echo=F, message=F, warning=F, results='markup'}
+library(tidyverse)
+library(openxlsx)
+library(srvyr)
+library(ggpattern)
+library(rmarkdown)
+
+marco <- readRDS("productos/04_marco/marco.rds")
+
+
+
+resumen <- marco |> 
+  mutate(domest = substr(estrato, 1, 3)) |> 
+  group_by(domest) |> 
+  summarise(n_upm = n(),
+            n_estratos = n_distinct(estrato)) |> 
+  mutate(n_estratos_esperados = case_when(n_upm < 200 ~ 1,
+                                         n_upm >= 200 & n_upm < 300 ~ 2,
+                                         n_upm >= 300 ~ 3,
+                                T ~ NA ))
+
+auxiliar <- marco  |> 
+  group_by(pro, domest, estrato) |> 
+  summarise(upm = n(),
+            min_viv_upm = min(Mi),
+            pro_viv_upm = round(mean(Mi)),
+            max_viv_upm = max(Mi),
+            upm_menos_40 = sum(Mi < 40))
+
+
+```
+
+# Número de estratos por dominio de estratificación
+
+De acuerdo a recomendaciones de CEPAL se debería tener al menos 100 UPM en cada dominio de estratificación, por este motivo se tiene que `r sum(resumen$n_estratos_esperados == 1)` dominios de estratificación tendrán un estrato socioeconómico único.
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+resumen  |> filter(n_estratos_esperados == 1) |> 
+  select(domest, n_upm)
+  
+```
+
+En `r sum(resumen$n_estratos_esperados == 2)` dominios de estratificación se tiene un número de UPM que va desde 200 hasta 299 por lo que se realizará la estratificación a dos estratos socioeconómicos.
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+resumen  |> filter(n_estratos_esperados == 2) |> 
+  select(domest, n_upm)
+  
+```
+
+En `r sum(resumen$n_estratos_esperados == 3)` dominios de estratificación se tiene un número de UPM mayor o igual a 300 por lo que se realizará la estratificación a tres estratos socioeconómicos.
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+resumen  |> filter(n_estratos_esperados == 3) |> 
+  select(domest, n_upm)
+  
+```
+
+Tras realizar el proceso de estratificación se encontró que en `r sum(resumen$n_estratos != resumen$n_estratos_esperados)` dominios de estratificación se obtuvo al menos un estrato con menos de 100 UPM, por lo que en ellos se realizó una re-estratificación esperando un estrato menos de lo que se esperaba inicialmente.
+\newpage
+```{r echo=F, message=F, warning=F, results='markup'}
+
+resumen  |> 
+  filter(n_estratos != n_estratos_esperados) |> 
+  select(domest, n_estratos_esperados, n_estratos_obtenidos = n_estratos)
+
+```
+
+\textbf{Nota:} En el dominio de estratificación 041 al realizar la estratificación esperando tres estratos se obtuvo el siguiente número de UPM por estrato 1-36, 2-159 , 3-187 , al realizar la re-estratificación a dos estratos se obtuvo el sigiente número de UPM por estrato 1-84 y 2-298, teniendo aún un número de UPM menor a 100 en un estrato por lo que unicamente para este dominio de estratifiación se decidió colapsar el estrato 1 y 2 de la estratificación original.  
+
+En la siguiente tabla se presenta el número de estratos por provincia.
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+marco |> 
+  group_by(pro) |> 
+  summarise(n_estratos = n_distinct(estrato),
+            upm = n()) |> 
+  rbind(marco |> 
+  group_by(pro) |> 
+  summarise(n_estratos = n_distinct(estrato),
+            upm = n()) |> 
+    select(-pro) |> 
+    group_by(pro = "Total") |> 
+    summarise_all(sum))
+
+```
+
+\textbf{Nota2:} En el dominio de estratificación 242 correspondiente a Provincia Santa Elena Rural se tiene un total de 37 UPM, siendo el único estrato en el que se tiene menos de 100 UPM.
+
+# Distribución de UPM por estrato
+
+## Azuay
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "01")
+
+```
+
+## Bolívar
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "02")
+
+```
+
+## Cañar
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "03")
+
+```
+\newpage
+## Carchi
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "04")
+
+```
+
+## Cotopaxi
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "05")
+
+```
+
+## Chimborazo
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "06")
+
+```
+
+## El Oro
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "07")
+
+```
+\newpage
+## Esmeraldas
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "08")
+
+```
+
+## Guayas
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "09")
+
+```
+
+## Imbabura
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "10")
+
+```
+
+## Loja
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "11")
+
+```
+\newpage
+## Los Ríos
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "12")
+
+```
+
+## Manabí
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "13")
+
+```
+
+## Morona Santiago
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "14")
+
+```
+
+## Napo
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "15")
+
+```
+
+## Pastaza
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "16")
+
+```
+\newpage
+## Pichincha
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "17")
+
+```
+
+## Tungurahua
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "18")
+
+```
+
+## Zamora Chinchipe
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "19")
+
+```
+
+## Galápagos
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "20")
+
+```
+
+## Sucumbíos
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "21")
+
+```
+
+## Orellana
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "22")
+
+```
+
+## Santo Domingo
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "23")
+
+```
+
+## Santa Elena
+
+```{r echo=F, message=F, warning=F, results='markup'}
+
+auxiliar |> filter(pro == "24")
+
+```

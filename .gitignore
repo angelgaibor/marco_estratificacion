@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+/insumos/01_tratamiento/censo/hog_2022.csv
+/insumos/01_tratamiento/censo/pob_2022.csv
+/insumos/01_tratamiento/censo/viv_2022.csv
+/productos/01_tratamiento/marco_hog.rds
+/productos/01_tratamiento/marco_per.rds
+/productos/01_tratamiento/marco_viv.rds
+/intermedios/02_clasificacion_variables/hogares_var_categorias.rds
+/intermedios/02_clasificacion_variables/personas_var_categorias.rds

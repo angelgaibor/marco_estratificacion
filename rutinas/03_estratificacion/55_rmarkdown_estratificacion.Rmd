@@ -1,0 +1,413 @@
+---
+title: "Estratificación Rural"
+subtitle: "Técnica de estratificación" 
+author: "Dirección de Infraestructura Estadística y Muestreo"
+output: 
+  html_document:
+    number_sections: true
+params: 
+  subpoblacion: subpoblacion
+---
+  
+```{r setup , include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  out.width = "50%",
+  #out.height = "50%",
+  dpi = 90,
+  fig.align='center'
+)
+
+```
+
+```{r library}
+library(tidyverse)
+library(knitr) 
+library(factoextra)
+library(corrplot)
+library(psych)
+library(FactoMineR)
+#para los métodos de estratificación
+library(stratification)
+library(kableExtra)
+library(SamplingStrata)
+```
+
+```{r datas urbano}
+ 
+indicadores = indicadores %>%
+  ungroup() %>%
+  select(-domest) %>%
+  rename(id_sector = id_upm)
+
+```
+
+```{r include=FALSE}
+
+indicadores <- indicadores %>% 
+  mutate_if(is.numeric, ~replace(., is.na(.), 0)) |> 
+  mutate_if(is.numeric, ~replace(., is.infinite(.), 0)) |> 
+  mutate_if(is.numeric, ~replace(., is.nan(.), 0)) 
+
+```
+
+La base de indicadores a nivel de Unidad Primaria de Muestreo (UPM) contiene `r ncol(indicadores)-1` variables, las cuales se encuentran codificadas en sentido positivo.
+
+# Análisis de correlación lineal
+
+Se muestra la matriz de correlación de Pearson de la matriz de indicadores.
+
+```{r mcor urbano}
+
+aux <- cor(indicadores |> select(-c(id_sector)), method = "pearson")
+graf_corr(aux)
+
+```
+
+# Análisis de Componentes Principales (ACP)
+
+```{r}
+ind_sinid_rural <- indicadores |> select(-id_sector) 
+```
+
+Para identificar el número de componentes óptimas se presenta el gráfico de sedimentación.
+
+```{r}
+
+vector_auxiliar <- (1:(dim(ind_sinid_rural)[2]))[apply(ind_sinid_rural, 2, sum) != 0]
+
+scree(ind_sinid_rural[,vector_auxiliar], main ="Gráfico de Sedimentacion", factors = F, hline = T)
+```
+
+
+```{r}
+acp <- PCA(ind_sinid_rural, scale.unit=T, graph=F, ncp=2)
+var_cp1 <- acp$eig[1,2]
+```
+
+Dado que nuestro interés se centra en observar únicamente la primera componente principal, se tiene que el porcentaje de varianza que explica la misma es del `r round(var_cp1,2)` %.
+
+Así, se presenta el gráfico de variables.
+
+```{r fig.cap= "Gráfico de variables"}
+fviz_pca_var(acp,
+             labelsize = 2,
+             col.var = "cos2", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+)
+
+```
+
+Y finalmente se presenta la distribución del primer componente principal o medida de resumen $y$
+  
+```{r}
+y <- acp$ind$coord[,1]
+y_trans <- mean_var(y, m2=50, s2= 10)
+
+hist(y_trans,breaks= 50,   main = "Histograma de CP1 con media =50 y sd=10", xlab= "y", ylab= "Frecuencia", col = "#E59866", border = "black")
+```
+
+
+Sin embargo, es importante también analizar la calidad de representación de las variables en los componentes y la contribución de las variables a la variabilidad de cada componente para que la medida de resumen recoja la mayor cantidad de variabilidad de los datos. 
+
+Como nuestro interés se centra en la primera componente principal, el análisis se centra en dicha componente. Se empieza por analizar la calidad de representación de las variables en la primera componente, el criterio nos dice que a mayor valor del coseno cuadrado se tiene una mayor vinculación o representación de la variable en el respectivo componente.
+
+Se decidió identificar a las variables que tienen una calidad de representación menor al $25$%, mismas que se presentan de color rojo en la tabla que se muestra a continuación:
+  
+```{r}
+crit_cos <- 0.25
+cos2 <- (get_pca_var(acp)$cos2) |> as.data.frame() |> select(Dim.1, Dim.2) |> arrange(desc(Dim.1))
+color.me <- which(cos2$Dim.1 <crit_cos)
+
+kable(cos2, digits = 2, col.names = c("CP1", "CP2"), align="c", format.args= list(decimal.mark = ",", big.mark = "."), caption= "Calidad de representación de las variables") |> 
+  kable_styling() %>%
+  row_spec(color.me, bold = T, color = "red", background = "white") 
+
+names_cos_bajo <- (cos2 |> filter(Dim.1<crit_cos)) |> rownames()
+
+var_sel <- row.names(cos2)[1]
+
+```
+
+Luego se analiza la contribución de las variables  en la contabilidad de la variabilidad de la primera componente.
+
+```{r}
+fviz_contrib(acp, choice = "var", axes = 1)
+contrib <- round(100/ncol(ind_sinid_rural ),2)
+```
+
+La teoría sugiere tomar aquellas variables que contribuyen menos del $\frac{1}{\text{# variables usadas en el ACP}}= \frac{1}{`r ncol(ind_sinid_rural)`}= `r contrib`$ %, las cuales se encuentran por debajo de la línea punteada roja.
+
+```{r}
+names_contrib_bajo <- get_pca_var(acp)$contrib |> as.data.frame() |> select(Dim.1) |> filter(Dim.1< contrib) |> rownames()
+```
+
+
+A continuación, se presentan dos escenarios para evaluar la mejor representación de nuestra medida de resumen $y$ utilizando métodos univariados y multivariados
+
+<!-- Corremos los dos escenarios del ACP -->
+  
+```{r escenario1 urbano}
+#Identifico las variables de la base de indicadores
+names_indicadores_all <- names(ind_sinid_rural)
+
+aux_data_1 <- ind_sinid_rural |> select(!all_of(names_cos_bajo))
+acp_e1 <- PCA(aux_data_1, scale.unit=T, graph=F, ncp=2)
+var_cp1_e1 <- acp_e1$eig[1,2]
+
+#identifico las variables que se usan para la estratificación
+variables_estratificacion_e1 <- colnames(aux_data_1)
+
+y <- acp_e1$ind$coord[,1]
+y_trans_e1 <- mean_var(y, m2=50, s2= 9)
+```
+
+```{r escenario2 urbano}
+aux_data_2 <- ind_sinid_rural |> select(!all_of(names_contrib_bajo))
+acp_e2 <- PCA(aux_data_2, scale.unit=T, graph=F, ncp=2)
+var_cp1_e2 <- acp_e2$eig[1,2]
+
+#identifico las variables que se usan para la estratificación
+variables_estratificacion_e2 <- colnames(aux_data_2)
+
+y <- acp_e2$ind$coord[,1]
+y_trans_e2 <- mean_var(y, m2=50, s2= 9)
+```
+
+# Escenario 1 (exclusión de las variables cuya calidad de representación es menor que el `r 100*crit_cos` %)
+
+Las variables que se excluyen son: `r names_cos_bajo`
+
+En este escenario la primera componente explica el `r round(var_cp1_e1,2)`%, dándose un aumento del `r round(var_cp1_e1-var_cp1,2)` % con repecto al escenario base.
+
+```{r fig.cap= "Contribución"}
+fviz_pca_var(acp_e1,
+             labelsize = 2,
+             col.var = "cos2", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+)
+```
+
+```{r}
+hist(y_trans_e1,breaks= 50,   main = "Histograma de CP1 con media =50 y sd=10", xlab= "y", ylab= "Frecuencia", col = "#E59866", border = "black")
+```
+
+Una vez obtenida nuestra medida de resumen $y$, se presenta los efectos de diseño  $DEFF_P$ y efecto de diseño generalizado $G(S)$, considerando tres estratos $H=3$ para todas las `r length(names_indicadores_all)` variables iniciales.
+
+```{r}
+#Se crea la data con los estratos de cada UPM en base a los 5 métodos univariados y los 2 multivariados
+univariado_e1 <- metodos_univ(y_trans_e1, H = n_est)
+lst_prev_e1 <- metodos_multi(univariado_e1, aux_data_1, n_est, var_sel)
+univariado_e1 <- lst_prev_e1[1] |> as.data.frame()
+eval_estratos_e1_jarque <- lst_prev_e1[2] |> as.data.frame()
+eval_estratos_e1_kmeans <- lst_prev_e1[3] |> as.data.frame()
+
+univariado_e2 <- metodos_univ(y_trans_e2, H = n_est)
+lst_prev_e2 <- metodos_multi(univariado_e2, aux_data_2, n_est, var_sel)
+univariado_e2 <- lst_prev_e2[1] |> as.data.frame()
+eval_estratos_e2_jarque <- lst_prev_e2[2] |> as.data.frame()
+eval_estratos_e2_kmeans <- lst_prev_e2[3] |> as.data.frame()
+
+#Empezamos a correr los def por hogar, vivienda y personas. Con todas las variables de la matriz de indicadores
+
+hogares_condicion = hogares_condicion %>%
+  select(-id_sector) %>% rename(id_sector = id_upm)
+
+aux_hg_e1 <- data.frame(Percentiles=deff_datas(hogares_condicion, "Percentiles", univariado_e1, names_indicadores_all),
+                        Dalenius= deff_datas(hogares_condicion, "Dalenius", univariado_e1, names_indicadores_all),
+                        LH_Sethi= deff_datas(hogares_condicion, "LH_Sethi", univariado_e1, names_indicadores_all),
+                        LH_Kozak = deff_datas(hogares_condicion, "LH_Kozak", univariado_e1, names_indicadores_all),
+                        Geometric = deff_datas(hogares_condicion, "Geometric", univariado_e1, names_indicadores_all),
+                        Jarque = deff_datas(hogares_condicion, "Jarque", univariado_e1, names_indicadores_all),
+                        Kmeans = deff_datas(hogares_condicion, "Kmeans", univariado_e1, names_indicadores_all))
+                        
+
+aux_hg_e2 <- data.frame(Percentiles=deff_datas(hogares_condicion, "Percentiles", univariado_e2, names_indicadores_all),
+                        Dalenius= deff_datas(hogares_condicion, "Dalenius", univariado_e2, names_indicadores_all),
+                        LH_Sethi= deff_datas(hogares_condicion, "LH_Sethi", univariado_e2, names_indicadores_all),
+                        LH_Kozak = deff_datas(hogares_condicion, "LH_Kozak", univariado_e2, names_indicadores_all),
+                        Geometric = deff_datas(hogares_condicion, "Geometric", univariado_e2, names_indicadores_all),
+                        Jarque = deff_datas(hogares_condicion, "Jarque", univariado_e2, names_indicadores_all),
+                        Kmeans = deff_datas(hogares_condicion, "Kmeans", univariado_e2, names_indicadores_all))
+
+rm(hogares_condicion)
+
+vivienda_condicion = vivienda_condicion %>%
+  select(-id_sector) %>% rename(id_sector = id_upm)
+
+aux_viv_e1 <- data.frame(Percentiles=deff_datas(vivienda_condicion, "Percentiles", univariado_e1, names_indicadores_all),
+                         Dalenius= deff_datas(vivienda_condicion, "Dalenius", univariado_e1, names_indicadores_all),
+                         LH_Sethi= deff_datas(vivienda_condicion, "LH_Sethi", univariado_e1, names_indicadores_all),
+                         LH_Kozak = deff_datas(vivienda_condicion, "LH_Kozak", univariado_e1, names_indicadores_all),
+                         Geometric = deff_datas(vivienda_condicion, "Geometric", univariado_e1, names_indicadores_all),
+                         Jarque = deff_datas(vivienda_condicion, "Jarque", univariado_e1, names_indicadores_all),
+                         Kmeans = deff_datas(vivienda_condicion, "Kmeans", univariado_e1, names_indicadores_all))
+                        
+
+aux_viv_e2 <- data.frame(Percentiles=deff_datas(vivienda_condicion, "Percentiles", univariado_e2, names_indicadores_all),
+                         Dalenius= deff_datas(vivienda_condicion, "Dalenius", univariado_e2, names_indicadores_all),
+                         LH_Sethi= deff_datas(vivienda_condicion, "LH_Sethi", univariado_e2, names_indicadores_all),
+                         LH_Kozak = deff_datas(vivienda_condicion, "LH_Kozak", univariado_e2, names_indicadores_all),
+                         Geometric = deff_datas(vivienda_condicion, "Geometric", univariado_e2, names_indicadores_all),
+                         Jarque = deff_datas(vivienda_condicion, "Jarque", univariado_e2, names_indicadores_all),
+                         Kmeans = deff_datas(vivienda_condicion, "Kmeans", univariado_e2, names_indicadores_all))
+                
+rm(vivienda_condicion)
+
+personas_condicion = personas_condicion %>%
+  select(-id_sector) %>% rename(id_sector = id_upm)
+
+aux_per_e1 <- data.frame(Percentiles=deff_datas(personas_condicion, "Percentiles", univariado_e1, names_indicadores_all),
+                         Dalenius= deff_datas(personas_condicion, "Dalenius", univariado_e1, names_indicadores_all),
+                         LH_Sethi= deff_datas(personas_condicion, "LH_Sethi", univariado_e1, names_indicadores_all),
+                         LH_Kozak = deff_datas(personas_condicion, "LH_Kozak", univariado_e1, names_indicadores_all),
+                         Geometric = deff_datas(personas_condicion, "Geometric", univariado_e1, names_indicadores_all),
+                         Jarque = deff_datas(personas_condicion, "Jarque", univariado_e1, names_indicadores_all),
+                         Kmeans = deff_datas(personas_condicion, "Kmeans", univariado_e1, names_indicadores_all))
+
+aux_per_e2 <- data.frame(Percentiles=deff_datas(personas_condicion, "Percentiles", univariado_e2, names_indicadores_all),
+                         Dalenius= deff_datas(personas_condicion, "Dalenius", univariado_e2, names_indicadores_all),
+                         LH_Sethi= deff_datas(personas_condicion, "LH_Sethi", univariado_e2, names_indicadores_all),
+                         LH_Kozak = deff_datas(personas_condicion, "LH_Kozak", univariado_e2, names_indicadores_all),
+                         Geometric = deff_datas(personas_condicion, "Geometric", univariado_e2, names_indicadores_all),
+                         Jarque = deff_datas(personas_condicion, "Jarque", univariado_e2, names_indicadores_all),
+                         Kmeans = deff_datas(personas_condicion, "Kmeans", univariado_e2, names_indicadores_all))
+                         
+rm(personas_condicion)
+```
+
+```{r}
+resumen_H3_e1 <- rbind(aux_viv_e1, aux_hg_e1, aux_per_e1) 
+resumen_H3_e1 <- rbind(resumen_H3_e1, colSums(resumen_H3_e1)) 
+row.names(resumen_H3_e1)[nrow(resumen_H3_e1)] <-  "G(S)"
+
+rm(aux_hg_e1, aux_viv_e1, aux_per_e1)
+
+#Imprimo la tabla
+kable(resumen_H3_e1, digits = 2, format.args = list(decimal.mark = ",", big.mark = ".")) |> kable_styling()
+```
+
+
+```{r}
+deff_sum_e1 <- resumen_H3_e1 |> filter(row_number()>n()-1)
+min_deff_e1 <- min(deff_sum_e1)
+index_met_e1 <- which(deff_sum_e1== min_deff_e1)
+index_met_e1 = index_met_e1[1]
+```
+
+Se puede ver que el método de `r colnames(resumen_H3_e1)[index_met_e1]` tiene el menor efecto de diseño generalizado.
+
+
+```{r fig.show='hold', out.width = "50%", fig.cap="Menor diseño de efecto generalizado"}
+for (i in variables_estratificacion_e1) {
+  boxplot(indicadores[[i]] ~ (univariado_e1[[colnames(resumen_H3_e1)[index_met_e1]]]),
+          main = i , xlab = NULL, ylab =NULL)
+}
+```
+
+
+# Escenario 2: (exclusión de las variables cuya calidad de representación es menor que el 30% y cuya contribución es menor a `r contrib` %)
+
+Las variables que se excluyen son: `r names_contrib_bajo`.
+
+En este escenario la primera componente explica el `r round(var_cp1_e2,2)` %, dándose un aumento del `r round(var_cp1_e2-var_cp1,2)` % con repecto al escenario base.
+
+
+```{r fig.cap= "Contribución"}
+fviz_pca_var(acp_e2,
+             labelsize = 2,
+             col.var = "cos2", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+)
+```
+
+```{r}
+hist(y_trans_e2,breaks= 50,   main = "Histograma de CP1 con media =50 y sd=10", xlab= "y", ylab= "Frecuencia", col = "#E59866", border = "black")
+```
+
+Una vez obtenida nuestra medida de resumen $y$, se presenta los efectos de diseño  $DEFF_P$ y efecto de diseño generalizado $G(S)$, considerando tres estratos $H=3$ para todas las `r length(names_indicadores_all)` variables iniciales.
+
+```{r}
+resumen_H3_e2 <- rbind(aux_viv_e2, aux_hg_e2, aux_per_e2) 
+
+resumen_H3_e2 <- rbind(resumen_H3_e2, colSums(resumen_H3_e2)) 
+
+row.names(resumen_H3_e2)[nrow(resumen_H3_e2)] <-  "G(S)"
+
+rm(aux_hg_e2, aux_viv_e2, aux_per_e2)
+
+#Imprimo la tabla
+knitr::kable(resumen_H3_e2, digits = 2, format.args = list(decimal.mark = ",", big.mark = ".")) |>  kable_styling()
+```
+
+
+```{r}
+deff_sum_e2 <- (resumen_H3_e2 |> filter(row_number()>n()-1)) 
+min_deff_e2 <- min(deff_sum_e2)
+index_met_e2 <- which(deff_sum_e2== min_deff_e2)
+index_met_e2 = index_met_e2[1]
+```
+
+Se puede ver que el método de `r colnames(resumen_H3_e2)[index_met_e2]` tiene el menor efecto de diseño generalizado
+
+
+```{r fig.show='hold', out.width = "50%", fig.cap="Menor diseño de efecto generalizado"}
+for (i in variables_estratificacion_e2) {
+  boxplot(indicadores[[i]] ~ (univariado_e2[[colnames(resumen_H3_e2)[index_met_e2]]]),
+          main = i , xlab = NULL, ylab =NULL)
+}
+```
+
+```{r}
+#Determinación del mejor escenario
+if( tail(resumen_H3_e1,1)[,index_met_e1] < tail(resumen_H3_e2,1)[,index_met_e2]){
+  metodo_selec <- "escenario 1"
+  metodo_final <- univariado_e1
+  metodo_e1 <- colnames(resumen_H3_e1)[index_met_e1]
+  auxiliar <- univariado_e1 %>% 
+    select(id_sector,est_soc = {{metodo_e1}}) %>% 
+    mutate(metodo = metodo_e1,
+           escenario = metodo_selec)
+  
+}else{
+  metodo_selec <- "escenario 2"
+  metodo_final <- univariado_e2
+  metodo_e2 <- colnames(resumen_H3_e2)[index_met_e2]
+  auxiliar <- univariado_e2 %>% 
+    select(id_sector, est_soc = {{metodo_e2}}) %>% 
+    mutate(metodo = metodo_e2,
+           escenario = metodo_selec)
+  
+}
+
+nombre_e1 <- colnames(resumen_H3_e1)[index_met_e1]
+nombre_e2 <- colnames(resumen_H3_e2)[index_met_e2]
+edg1 <- tail(resumen_H3_e1,1)[,index_met_e1]
+edg2 <- tail(resumen_H3_e2,1)[,index_met_e2]
+
+auxiliar <- univariado_e1 |> 
+  select(id_sector,est_e1 = {{nombre_e1}}) |> 
+  mutate(metodo_e1 = nombre_e1,
+         edg_e1 = edg1) |> 
+  left_join(univariado_e2 |> 
+  select(id_sector,est_e2 = {{nombre_e2}}) |> 
+  mutate(metodo_e2 = nombre_e2,
+         edg_e2 = edg2), 
+  by = "id_sector") |> 
+  rename(id_upm = id_sector)
+
+```
+
+En base a los resultados obtenidos en el escenario 1 y 2, podemos concluir con evidencia estadística que el menor efecto de diseño generalizado se presenta en el `r metodo_selec`, por lo cual los resultados siguientes son evaluados en base a dicho escenario.
+
+Dado que el efecto de diseño no es el único parámetro a evaluar para elegir el mejor procedimiento de estratificación, se presenta la siguiente matriz de coincidencias entre las diferentes clasificaciones de los estratos, que permite evaluar la estabilidad del método con respecto a otros procedimientos de estratificación.
+
+```{r}
+knitr::kable(mx_coincidencias(metodo_final |> select(-id_sector)), digits = 2, format.args = list(decimal.mark = ",", big.mark = "."), caption = "Matriz de coincidencias") |>  kable_styling()
+```
+

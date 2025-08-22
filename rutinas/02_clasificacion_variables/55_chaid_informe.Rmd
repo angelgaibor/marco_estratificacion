@@ -1,0 +1,622 @@
+---
+title: CHAID - `r nombre_domest`
+author: "DINEM"
+output: 
+  html_document:
+    number_sections: true
+params: 
+  subpoblacion: subpoblacion
+---
+
+
+```{r setup , include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE,
+	fig.height=10, fig.width=20, dpi=90, out.width=800
+)
+```
+
+```{r library}
+library(dplyr)
+library(knitr) 
+# library(CHAID)
+library(partykit)
+```
+
+
+```{r datas}
+
+
+# load("RData/enemdu_censo_desempleo.RData")
+# Filtro a nivel de viviendas
+aux <- pobreza_01 %>% 
+  distinct(id_vivienda, .keep_all = T) %>% 
+  mutate(depen1= case_when(depen==0 ~ 0, 
+              depen>0 & depen<=1.25 ~ 1.25,
+              depen>1 & depen<=2 ~ 2,
+              depen>2 ~ 3))
+
+aux_jef_hog<- pobreza_01 %>% 
+  filter(parentesco==1)
+aux_edc_bsc<- pobreza_01 %>% 
+  filter(edad >= 5 & edad<= 14 )
+aux_bch_ajus<- pobreza_01 %>% 
+  filter(edad >= 15 & edad <= 17)
+aux_alfabetismo<- pobreza_01 %>% 
+  filter(edad>=15)
+aux_t_infa<- pobreza_01 %>% 
+  filter(edad>=5 & edad<=17)
+aux_jov_no_est_tra<-pobreza_01 %>% 
+  filter(edad >= 18 & edad <=24)
+aux_ninios_muj<- pobreza_01 %>% 
+  filter((edad<=5) | (sexo==2 & edad<=49 & edad>=15))
+
+
+```
+
+# Pobreza por ingresos (1:Pobre, 0: No pobre)
+
+## Techo de las viviendas
+
+1: Hormigón (losa, cemento),  
+
+2: Fibrocemento,asbesto (eternit, eurolit), 
+
+3: Zinc, Aluminio, 
+
+4: Teja, 
+
+5: Palma, paja u hoja, 
+
+6: Otro Material
+
+```{r}
+
+chaid <- ctree(pobreza ~ techo,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Piso
+
+1: Duela, parquet, tablón tratado o piso flotante, 
+
+2: Cerámica, baldosa, vinil o porcelanato, 
+
+3: Mármol o marmetón, 
+
+4: Ladrillo o cemento, 
+
+5: Tabla / tablón no tratado, 
+
+6: Caña, 
+
+7: Tierra, 
+
+8: Otro Material.
+
+```{r}
+
+chaid <- ctree(pobreza ~ piso,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+
+## Paredes
+
+1: Hormigón/Ladrillo o Bloque, 
+
+2: Asbesto/Cemento (Fibrolit), 
+
+3: Adobe o Tapia, 
+
+4: Madera, 
+
+5: Caña revestida o bahareque, 
+
+6: Caña no revestida o estera, 
+
+7: Otra Material
+
+```{r }
+
+chaid <- ctree(pobreza ~ paredes,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+
+```
+
+
+## Procedencia del agua
+
+1: Red pública, 
+
+2: Pila o llave pública, 
+
+3: Otra fuente por tubería, 
+
+4: Carro repartidor, triciclo, 
+
+5: Pozo, 
+
+6: Río, vertiente, acequia, 
+
+7: Otro
+
+```{r}
+
+chaid <- ctree(pobreza ~ p_agua,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Tubería por dentro del domicilio
+
+1: Por tubería dentro de la vivienda, 
+
+2: Por tubería fuera de la vivienda pero en el lote, 
+
+3: Por tubería fuera de la vivienda, lote o terreno, 
+
+4: No recibe agua por tubería sino por otros medios
+
+```{r}
+
+chaid <- ctree(pobreza ~ r_agua,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Servicio Higiénico
+
+1: Excusado y alcantarillado, 
+
+2: Excusado y pozo séptico, 
+
+3: Excusado y pozo ciego, 
+
+4: Letrina, 
+
+5: No tiene.
+
+```{r}
+
+chaid <- ctree(pobreza ~ tipo_sh,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Luz
+
+1: Empresa eléctrica pública, 
+
+2: Planta eléctrica privada, 
+
+3: Vela, candil, mechero, gas, 
+
+4: Ninguno.
+
+```{r}
+
+chaid <- ctree(pobreza ~ luz,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Basura
+
+1: Contratan el servicio, 
+
+2: Servicio municipal, 
+
+3: Botan a la calle, quebrada, río, 
+
+4: La queman, entierran, 
+
+5: Otra.
+
+```{r}
+
+chaid <- ctree(pobreza ~ basura,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Hacinamiento
+
+0: Hacinado   
+
+1: No Hacinado
+
+```{r}
+
+chaid <- ctree(pobreza ~ hacinam,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Dependencia
+
+
+```{r}
+
+chaid <- ctree(pobreza ~ depen1,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Jefes de hogar Escolaridad
+
+1: >13  
+ 
+0: <=13
+ 
+```{r}
+
+chaid <- ctree(pobreza ~ esc_ea,
+                   data = aux_jef_hog,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Asistencia de educación general básica (5 a 14 años)
+
+1: Asiste
+
+2: No asiste 
+
+```{r}
+
+chaid <- ctree(pobreza ~ asiste_clases,
+                   data = aux_edc_bsc,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Asistencia ajustada en bachillerato(15 a 17 años))
+ 
+1: Asiste
+ 
+2: No asiste 
+
+
+```{r}
+
+chaid <- ctree(pobreza ~ asiste_clases,
+                   data = aux_bch_ajus,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Alfabetismo
+1: sabe leer y escribir
+ 
+0: no sabe leer y escribir
+
+```{r}
+
+chaid <- ctree(pobreza ~ leer_escribir,
+                   data = aux_alfabetismo,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Combustible
+ 1: Gas,  
+ 
+ 2: Leña/carbón,   
+ 
+ 3: Electricidad , 
+ 
+ 4: Otro
+
+```{r}
+
+chaid <- ctree(pobreza ~ combustible,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Espacio exclusivo para cocinar
+
+ 1: Si,  
+ 
+ 2: No
+
+```{r}
+
+chaid <- ctree(pobreza ~ exc_cocina,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Ducha
+
+ 1: Exclusivo del hogar,  
+ 
+ 2: Compartido con otros hogares,  
+ 
+ 3: No tiene
+
+```{r}
+
+chaid <- ctree(pobreza ~ exc_ducha,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Seguro
+
+```{r}
+
+chaid <- ctree(pobreza ~ seguros_1+seguros_2,
+                   data = pobreza_01,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+## Autoidentificación
+
+1: Indígena, 
+
+2: Afroecuatoriano, 
+
+3: Negro, 
+
+4: Mulato, 
+
+5: Montubio, 
+
+6: Mestizo, 
+
+7: Blanco, 
+
+8: Otro, cual.
+
+```{r}
+
+chaid <- ctree(pobreza ~ autoidentifica,
+                   data = pobreza_01,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+
+## Seguros
+
+1: SG, 
+
+2: Voluntario, 
+
+3: Campesiono , 
+
+4: ISSFA/ISSPOL, 
+
+5: SPhosp, 
+
+6: SP_sn_hosp, 
+
+7: AUS, 
+
+8: Municipales_CP, 
+
+9: MSP, 
+
+10: Ninguno.
+
+```{r}
+
+chaid <- ctree(pobreza ~ seguros_1 +seguros_2,
+                   data = pobreza_01,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+
+
+## Trabajo infantil
+
+1: Trabajo  
+
+2: No Trabajo
+
+```{r}
+
+chaid <- ctree(pobreza ~ trabajo,
+                   data = aux_t_infa,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Jóvenes que ni trabajan ni estudian
+
+0: Trabajo  o estudia
+
+1: Ni Trabaja ni estudia
+
+```{r}
+
+chaid <- ctree(pobreza ~ nini,
+                   data = aux_jov_no_est_tra,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Hogares monoparentales cuyo jefe de hogar es mujer y tiene hijos.
+
+1: Hogar monoparental cuyo jefe de hogar es mujer y tiene hijos
+
+0: Otros
+
+```{r}
+
+chaid <- ctree(pobreza ~ id_hmuj,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Relación niños mujeres 
+
+```{r}
+
+chaid <- ctree(pobreza ~ ni_mj,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Porcentaje de mujeres y Porcentaje de hombres
+
+1: Hombres
+
+2: Mujeres
+
+```{r}
+
+chaid <- ctree(pobreza ~ sexo,
+                   data = aux,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Tasa de juventud
+
+1: Personas entre 15 y 29 años
+
+0: Otros
+
+```{r}
+
+chaid <- ctree(pobreza ~ ta_juventud,
+                   data = pobreza_01,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
+## Tasa de Envejecimiento
+
+1: Personas mayores a 65 años 
+
+0: Otros
+
+```{r}
+
+chaid <- ctree(pobreza ~ ta_envejecimiento,
+                   data = pobreza_01,
+                   weights=fexp_cal_hog)
+
+plot(chaid,
+     main = "Dominio estratificación",
+     gp = gpar(fontsize = 13))
+```
+
