@@ -7,12 +7,7 @@ library(arrow)
 source("rutinas/funciones/open_marco.R")
 source("rutinas/funciones/save_marco.R")
 
-bdd <- readRDS("productos/01_tratamiento/marco_per.rds")
-
-save_marco("pedidos/005_ninos_promedio_envigmu/base_personas/", bdd)
-
-
-
+bdd <- open_marco("pedidos/005_ninos_promedio_envigmu/base_personas/")
 
 hogar <- bdd |> 
   mutate(mujer = case_when(p02 == 2 & p03 >= 15 ~ 1,
@@ -31,3 +26,6 @@ provincia <- hogar |>
             num_hog_muj_nin = sum(hog_muj * hog_nin),
             num_nin = sum(num_nin_hog),
             num_nin_hog_muj = sum(num_nin_hog * hog_muj))
+
+saveRDS(provincia, 
+        "pedidos/005_ninos_promedio_envigmu/resumen_provincia.rds")
